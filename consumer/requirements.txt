@@ -1,0 +1,5 @@
+aiokafka
+asyncpg
+
+python-json-logger
+elasticsearch

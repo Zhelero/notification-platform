@@ -1,0 +1,6 @@
+fastapi
+uvicorn
+aiokafka
+
+python-json-logger
+elasticsearch
