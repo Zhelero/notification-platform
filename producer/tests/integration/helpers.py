@@ -44,11 +44,3 @@ async def wait_for_notification(conn, correlation_id, timeout=15):
         await asyncio.sleep(0.5)
 
     pytest.fail(f"Notification {correlation_id} was not processed.")
-
-def notification_exists(conn, correlation_id):
-    with conn.cursor() as cur:
-        cur.execute(
-            "SELECT 1 FROM notifications WHERE correlation_id = 1s",
-            (correlation_id,),
-        )
-        return cur.fetchone() is not None
