@@ -3,12 +3,12 @@ import json
 import uuid
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from aiokafka import AIOKafkaProducer
 
-from schemas import NotifyRequest
-from config import KAFKA_BOOTSTRAP, TOPIC
-from logging_config import setup_logging
+from producer.schemas import NotifyRequest
+from producer.config import KAFKA_BOOTSTRAP, TOPIC
+from producer.logging_config import setup_logging
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -31,6 +31,7 @@ async def lifespan(app: FastAPI):
 
     logger.info("Stopping Kafka producer")
     await producer.stop()
+    logger.info("Kafka producer stopped")
 
 
 app = FastAPI(lifespan=lifespan)
@@ -44,12 +45,9 @@ async def notify(request: Request, payload: NotifyRequest):
         "correlation_id": correlation_id,
         **payload.model_dump(),
     }
-    producer = request.app.state.producer
-
-    await producer.send_and_wait(TOPIC, event)
 
     logger.info(
-        "Notification queued",
+        "Notification request received",
         extra={
             "correlation_id": correlation_id,
             "user_id": payload.user_id,
@@ -57,7 +55,36 @@ async def notify(request: Request, payload: NotifyRequest):
         },
     )
 
+    producer = request.app.state.producer
+
+    try:
+        await producer.send_and_wait(TOPIC, event)
+
+        logger.info(
+            "Notification published",
+            extra={
+                "correlation_id": correlation_id,
+                "user_id": payload.user_id,
+                "channel": payload.channel,
+                "topic": TOPIC,
+            },
+        )
+
+    except Exception:
+        logger.exception(
+            "Failed to publish notification",
+            extra={
+                "correlation_id": correlation_id,
+                "user_id": payload.user_id,
+                "channel": payload.channel,
+            },
+        )
+        raise HTTPException(
+            status_code=503,
+            detail="Notification broker unavailable",
+        )
+
     return {
-        "status": "queued",
+        "status": "published",
         "correlation_id": correlation_id,
     }

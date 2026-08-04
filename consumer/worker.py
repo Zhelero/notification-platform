@@ -3,12 +3,10 @@ import json
 import logging
 
 from aiokafka import AIOKafkaConsumer
-from datetime import datetime, UTC
 
-from elastic import index_log
-from logging_config import setup_logging
-from config import KAFKA_BOOTSTRAP, TOPIC
-from db import get_pool, save_notification
+from consumer.logging_config import setup_logging
+from consumer.config import KAFKA_BOOTSTRAP, TOPIC
+from consumer.db import get_pool, save_notification
 
 
 setup_logging()
@@ -31,31 +29,46 @@ async def main():
 
     try:
         async for msg in consumer:
-            event = msg.value
+            try:
+                event = msg.value
 
-            logger.info(
-                "Message received",
-                extra={
-                    "correlation_id": event["correlation_id"],
-                    "topic": msg.topic,
-                    "partition": msg.partition,
-                    "offset": msg.offset,
-                },
-            )
+                logger.info(
+                    "Message received",
+                    extra={
+                        "correlation_id": event.get("correlation_id"),
+                        "topic": msg.topic,
+                        "partition": msg.partition,
+                        "offset": msg.offset,
+                    },
+                )
 
-            await save_notification(pool, event)
+                await save_notification(pool, event)
 
-            logger.info(
-                "Notification saved",
-                extra={
-                    "correlation_id": event["correlation_id"],
-                    "topic": msg.topic,
-                    "user_id": event["user_id"],
-                    "channel": event["channel"],
-                },
-            )
+                logger.info(
+                    "Notification saved",
+                    extra={
+                        "correlation_id": event.get("correlation_id"),
+                        "topic": msg.topic,
+                        "user_id": event.get("user_id"),
+                        "channel": event.get("channel"),
+                        "partition": msg.partition,
+                        "offset": msg.offset,
+                    },
+                )
+
+            except Exception:
+                logger.exception(
+                    "Failed to process message",
+                    extra={
+                        "correlation_id": event.get("correlation_id"),
+                        "topic": msg.topic,
+                        "partition": msg.partition,
+                        "offset": msg.offset,
+                    },
+                )
 
     finally:
+        logger.info("Consumer stopped")
         await consumer.stop()
         await pool.close()
 
