@@ -1,10 +1,10 @@
 import logging
-import os
 
-from pythonjsonlogger import jsonlogger
+from pythonjsonlogger.json import JsonFormatter
 from elasticsearch import Elasticsearch
 
-from elastic_handler import ElasticsearchHandler
+from producer.config import LOG_FORMAT, ELASTICSEARCH_URL
+from producer.elastic_handler import ElasticsearchHandler
 
 
 def setup_logging():
@@ -13,10 +13,8 @@ def setup_logging():
     logger.handlers.clear()
 
     console_handler = logging.StreamHandler()
-    console_handler.setFormatter(jsonlogger.JsonFormatter(
-        "%(asctime)s %(levelname)s %(name)s %(message)s %(correlation_id)s %(user_id)s %(channel)s %(offset)s"
-    ))
+    console_handler.setFormatter(JsonFormatter(LOG_FORMAT))
     logger.addHandler(console_handler)
 
-    es = Elasticsearch(os.getenv("ELASTICSEARCH_URL", "http://localhost:9200"))
+    es = Elasticsearch(ELASTICSEARCH_URL)
     logger.addHandler(ElasticsearchHandler(es))

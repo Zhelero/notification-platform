@@ -1,5 +1,5 @@
 import asyncpg
-from config import DB_CONFIG
+from consumer.config import DB_CONFIG
 
 
 async def get_pool():
