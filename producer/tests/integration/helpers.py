@@ -21,26 +21,51 @@ def send_notification(user_id=123, channel="#alerts", text=None):
     data = response.json()
 
     return {
+        "user_id": user_id,
+        "channel": channel,
         "text": text,
         "correlation_id": uuid.UUID(data["correlation_id"]),
     }
 
 async def wait_for_notification(conn, correlation_id, timeout=15):
-    deadline = asyncio.get_event_loop().time() + timeout
+    rows = await wait_for_notifications(
+        conn,
+        [correlation_id],
+        timeout=timeout,
+    )
 
-    while asyncio.get_event_loop().time() < deadline:
-        row = await conn.fetchrow(
+    return rows[correlation_id]
+
+async def wait_for_notifications(conn, correlation_ids, timeout=15):
+    """
+    Wait until all notifications with the given correlation IDs are stored.
+
+    Returns a dict {correlation_id: row}. Fails if any notification
+    is not processed before the timeout.
+    """
+    pending = set(correlation_ids)
+    found = {}
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout
+
+    while pending and loop.time() < deadline:
+        rows = await conn.fetch(
             """
             SELECT user_id, channel, text, correlation_id
             FROM notifications
-            WHERE correlation_id = $1
+            WHERE correlation_id = ANY($1::uuid[])
             """,
-            correlation_id,
+            list(pending),
         )
 
-        if row:
-            return row
+        for row in rows:
+            found[row["correlation_id"]] = row
+            pending.discard(row["correlation_id"])
 
-        await asyncio.sleep(0.5)
+        if pending:
+            await asyncio.sleep(0.5)
 
-    pytest.fail(f"Notification {correlation_id} was not processed.")
+    if pending:
+        pytest.fail(f"Notifications were not processed in time: {pending}")
+
+    return found
