@@ -4,8 +4,9 @@ import pytest
 import requests
 
 
-def send_notification(user_id=123, channel="#alerts", text=None):
+def send_notification(user_id=123, channel="#alerts", text=None, correlation_id=None):
     text = text or f"hello-{uuid.uuid4()}"
+    correlation_id = correlation_id or uuid.uuid4()
 
     response = requests.post(
         "http://127.0.0.1:8001/notify",
@@ -13,6 +14,7 @@ def send_notification(user_id=123, channel="#alerts", text=None):
             "user_id": user_id,
             "channel": channel,
             "text": text,
+            "correlation_id": str(correlation_id),
         },
     )
 
