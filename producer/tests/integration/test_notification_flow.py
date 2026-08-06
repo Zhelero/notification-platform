@@ -85,3 +85,92 @@ async def test_notifications_are_persisted_once(db_conn):
     )
 
     assert count == len(events)
+
+
+async def test_unicode_text_is_preserved(db_conn):
+    event = send_notification(
+        user_id=42,
+        channel="#test",
+        text="Привет 👋 สวัสดี <test>",
+    )
+
+    row = await wait_for_notification(db_conn, event["correlation_id"])
+
+    assert row["user_id"] == event["user_id"]
+    assert row["channel"] == event["channel"]
+    assert row["text"] == event["text"]
+    assert row["correlation_id"] == event["correlation_id"]
+
+
+async def test_same_payload_creates_distinct_notifications(db_conn):
+    event1 = send_notification(
+        user_id=1,
+        channel="#test",
+        text="same-message",
+    )
+
+    event2 = send_notification(
+        user_id=1,
+        channel="#test",
+        text="same-message",
+    )
+
+    rows = await wait_for_notifications(
+        db_conn,
+        [event1["correlation_id"], event2["correlation_id"]],
+    )
+
+    assert event1["correlation_id"] != event2["correlation_id"]
+
+    assert rows[event1["correlation_id"]]["text"] == "same-message"
+    assert rows[event2["correlation_id"]]["text"] == "same-message"
+
+    count = await db_conn.fetchval(
+        "SELECT COUNT(*) FROM notifications"
+    )
+
+    assert count == 2
+
+
+async def test_large_batch_of_messages(db_conn):
+    events = [
+        send_notification(
+            user_id=i,
+            channel=f"#batch-{i}",
+            text=f"batch-{i}-{uuid.uuid4()}",
+        )
+        for i in range(50)
+    ]
+
+    correlation_ids = [event["correlation_id"] for event in events]
+
+    rows = await wait_for_notifications(db_conn, correlation_ids)
+
+    assert len(rows) == len(events)
+
+    for event in events:
+        row = rows[event["correlation_id"]]
+        assert row["text"] == event["text"]
+
+    count = await db_conn.fetchval(
+        "SELECT COUNT(*) FROM notifications"
+    )
+
+    assert count == len(events)
+
+
+async def test_long_unicode_text_is_preserved(db_conn):
+    text = ("Привет 👋 สวัสดี こんにちは 🚀 " * 100).strip()
+
+    event = send_notification(
+        user_id=42,
+        channel="#test",
+        text=text,
+    )
+
+    row = await wait_for_notification(db_conn, event["correlation_id"])
+
+    assert row["user_id"] == event["user_id"]
+    assert row["channel"] == event["channel"]
+    assert row["text"] == event["text"]
+    assert row["correlation_id"] == event["correlation_id"]
