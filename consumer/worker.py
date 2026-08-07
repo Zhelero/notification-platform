@@ -6,7 +6,7 @@ from aiokafka import AIOKafkaConsumer
 
 from consumer.logging_config import setup_logging
 from consumer.config import KAFKA_BOOTSTRAP, TOPIC
-from consumer.db import get_pool, save_notification
+from consumer.db import get_pool, save_notification, DuplicateNotificationError
 
 
 setup_logging()
@@ -51,6 +51,16 @@ async def main():
                         "topic": msg.topic,
                         "user_id": event.get("user_id"),
                         "channel": event.get("channel"),
+                        "partition": msg.partition,
+                        "offset": msg.offset,
+                    },
+                )
+            except DuplicateNotificationError as exc:
+                logger.info(
+                    "Duplicate notification ignored",
+                    extra={
+                        "correlation_id": event.get("correlation_id"),
+                        "topic": msg.topic,
                         "partition": msg.partition,
                         "offset": msg.offset,
                     },
