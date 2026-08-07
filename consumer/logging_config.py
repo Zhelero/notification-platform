@@ -1,4 +1,5 @@
 import logging
+import os
 
 from pythonjsonlogger.json import JsonFormatter
 from elasticsearch import Elasticsearch
@@ -16,5 +17,11 @@ def setup_logging():
     console_handler.setFormatter(JsonFormatter(LOG_FORMAT))
     logger.addHandler(console_handler)
 
-    es = Elasticsearch(ELASTICSEARCH_URL)
-    logger.addHandler(ElasticsearchHandler(es))
+    if os.getenv("ENABLE_ELASTIC_LOGGING", "false").lower() == "true":
+        es = Elasticsearch(
+            ELASTICSEARCH_URL,
+            request_timeout=0.2,
+            max_retries=0,
+            retry_on_timeout=False,
+        )
+        logger.addHandler(ElasticsearchHandler(es))
