@@ -174,3 +174,39 @@ async def test_long_unicode_text_is_preserved(db_conn):
     assert row["channel"] == event["channel"]
     assert row["text"] == event["text"]
     assert row["correlation_id"] == event["correlation_id"]
+
+
+async def test_duplicate_message_is_processed_once(db_conn):
+    correlation_id = uuid.uuid4()
+
+    event1 = send_notification(
+        user_id=42,
+        channel="#test",
+        text="duplicate message",
+        correlation_id=correlation_id,
+    )
+
+    event2 = send_notification(
+        user_id=42,
+        channel="#test",
+        text="duplicate message",
+        correlation_id=correlation_id,
+    )
+
+    row = await wait_for_notification(db_conn, correlation_id)
+
+    assert row["user_id"] == event1["user_id"]
+    assert row["channel"] == event1["channel"]
+    assert row["text"] == event1["text"]
+    assert row["correlation_id"] == correlation_id
+
+    count = await db_conn.fetchval(
+        """
+        SELECT COUNT(*) 
+        FROM notifications
+        WHERE correlation_id = $1
+        """,
+        correlation_id,
+    )
+
+    assert count == 1

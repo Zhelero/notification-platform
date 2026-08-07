@@ -19,7 +19,7 @@ async def lifespan(app: FastAPI):
 
     producer = AIOKafkaProducer(
         bootstrap_servers=KAFKA_BOOTSTRAP,
-        value_serializer=lambda m: json.dumps(m).encode("utf-8"),
+        value_serializer=lambda m: json.dumps(m, default=str).encode("utf-8"),
     )
     await producer.start()
 
@@ -39,17 +39,17 @@ app = FastAPI(lifespan=lifespan)
 
 @app.post("/notify")
 async def notify(request: Request, payload: NotifyRequest):
-    correlation_id = str(uuid.uuid4())
+    correlation_id = payload.correlation_id or uuid.uuid4()
 
     event = {
-        "correlation_id": correlation_id,
-        **payload.model_dump(),
+        **payload.model_dump(exclude={"correlation_id"}),
+        "correlation_id": str(correlation_id),
     }
 
     logger.info(
         "Notification request received",
         extra={
-            "correlation_id": correlation_id,
+            "correlation_id": str(correlation_id),
             "user_id": payload.user_id,
             "channel": payload.channel,
         },
@@ -63,7 +63,7 @@ async def notify(request: Request, payload: NotifyRequest):
         logger.info(
             "Notification published",
             extra={
-                "correlation_id": correlation_id,
+                "correlation_id": str(correlation_id),
                 "user_id": payload.user_id,
                 "channel": payload.channel,
                 "topic": TOPIC,
@@ -74,7 +74,7 @@ async def notify(request: Request, payload: NotifyRequest):
         logger.exception(
             "Failed to publish notification",
             extra={
-                "correlation_id": correlation_id,
+                "correlation_id": str(correlation_id),
                 "user_id": payload.user_id,
                 "channel": payload.channel,
             },
@@ -86,5 +86,5 @@ async def notify(request: Request, payload: NotifyRequest):
 
     return {
         "status": "published",
-        "correlation_id": correlation_id,
+        "correlation_id": str(correlation_id),
     }

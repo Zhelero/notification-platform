@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime, UTC
-
 from elasticsearch import Elasticsearch
+from elastic_transport import ConnectionError
 
 
 class ElasticsearchHandler(logging.Handler):
@@ -23,6 +23,9 @@ class ElasticsearchHandler(logging.Handler):
                     doc[key] = getattr(record, key)
 
             self.es.index(index=self.index, document=doc)
+        except ConnectionError:
+            # Elasticsearch unavailable — do not interrupt app process.
+            return
         except Exception:
             # Не роняем приложение, если Elasticsearch недоступен —
             # просто печатаем ошибку хендлера в stderr, как предписывает logging.Handler
