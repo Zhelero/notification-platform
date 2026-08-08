@@ -4,6 +4,8 @@ from producer.tests.integration.helpers import (
     send_notification,
     wait_for_notification,
     wait_for_notifications,
+    post_notify,
+    assert_notification_count_after_delay,
 )
 
 async def test_notification_is_processed_end_to_end(db_conn):
@@ -210,3 +212,15 @@ async def test_duplicate_message_is_processed_once(db_conn):
     )
 
     assert count == 1
+
+
+async def test_invalid_notification_is_not_persisted(db_conn):
+    response = post_notify({
+        "user_id": 1,
+        "channel": "#alerts",
+        # "text" is missing on purpose
+    })
+
+    assert response.status_code == 422
+
+    await assert_notification_count_after_delay(db_conn, 0)

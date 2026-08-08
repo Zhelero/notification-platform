@@ -29,6 +29,15 @@ def send_notification(user_id=123, channel="#alerts", text=None, correlation_id=
         "correlation_id": uuid.UUID(data["correlation_id"]),
     }
 
+def post_notify(payload: dict):
+    """POST a raw payload to /notify without asserting success.
+
+    Use this instead of send_notification() for negative-path tests,
+    e.g. sending a payload that's missing a required field and
+    expecting a 422 rather than a 200.
+    """
+    return requests.post("http://127.0.0.1:8001/notify", json=payload)
+
 async def wait_for_notification(conn, correlation_id, timeout=15):
     rows = await wait_for_notifications(
         conn,
@@ -71,3 +80,12 @@ async def wait_for_notifications(conn, correlation_ids, timeout=15):
         pytest.fail(f"Notifications were not processed in time: {pending}")
 
     return found
+
+async def assert_notification_count_after_delay(db_conn, expected_count, delay=2):
+    await asyncio.sleep(delay)
+
+    count = await db_conn.fetchval("SELECT COUNT(*) FROM notifications")
+
+    assert count == expected_count, (
+        f"Expected {expected_count} notifications after {delay}s, got {count}"
+    )
