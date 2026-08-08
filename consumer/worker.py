@@ -1,5 +1,4 @@
 import asyncio
-import json
 import logging
 
 from aiokafka import AIOKafkaConsumer
@@ -7,7 +6,7 @@ from aiokafka import AIOKafkaConsumer
 from consumer.logging_config import setup_logging
 from consumer.config import KAFKA_BOOTSTRAP, TOPIC
 from consumer.db import get_pool, save_notification, DuplicateNotificationError
-
+from consumer.decoding import decode_event
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -18,7 +17,6 @@ async def main():
     consumer = AIOKafkaConsumer(
         TOPIC,
         bootstrap_servers=KAFKA_BOOTSTRAP,
-        value_deserializer=lambda m: json.loads(m.decode('utf-8')),
         group_id='notification-workers',
         auto_offset_reset='earliest',
     )
@@ -30,8 +28,19 @@ async def main():
     try:
         async for msg in consumer:
             try:
-                event = msg.value
+                event = decode_event(msg.value)
+            except ValueError:
+                logger.error(
+                    "Message is not valid JSON, skipping",
+                    extra={
+                        "topic": msg.topic,
+                        "partition": msg.partition,
+                        "offset": msg.offset,
+                    },
+                )
+                continue
 
+            try:
                 logger.info(
                     "Message received",
                     extra={
@@ -55,7 +64,7 @@ async def main():
                         "offset": msg.offset,
                     },
                 )
-            except DuplicateNotificationError as exc:
+            except DuplicateNotificationError:
                 logger.info(
                     "Duplicate notification ignored",
                     extra={
