@@ -11,7 +11,7 @@ from consumer.decoding import decode_event
 setup_logging()
 logger = logging.getLogger(__name__)
 
-async def main():
+async def run_consumer():
     pool = await get_pool()
 
     consumer = AIOKafkaConsumer(
@@ -92,4 +92,4 @@ async def main():
         await pool.close()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(run_consumer())
