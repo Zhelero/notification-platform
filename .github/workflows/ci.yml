@@ -38,6 +38,8 @@ jobs:
           PGPASSWORD=app psql -h localhost -p 5433 -U app -d notifications -f db/init.sql
 
       - name: Run unit tests
+        env:
+          PYTHONPATH: ${{ github.workspace }}
         run: |
           pytest producer/tests/test_notify.py
           pytest consumer/tests/test_save_notification.py
@@ -77,6 +79,8 @@ jobs:
         run: docker compose ps
 
       - name: Run integration tests
+        env:
+          PYTHONPATH: ${{ github.workspace }}
         run: |
           pytest producer/tests/integration
           pytest consumer/tests/integration
