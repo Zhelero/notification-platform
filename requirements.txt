@@ -1,0 +1,22 @@
+# Web / API
+fastapi==0.141.1
+uvicorn==0.52.0
+
+# Messaging
+aiokafka==0.14.0
+
+# Database
+asyncpg==0.31.0
+psycopg[binary]==3.3.4
+alembic==1.19.0
+
+# Logging / observability
+python-json-logger==4.1.0
+elasticsearch==8.15.0
+
+# HTTP client
+requests==2.34.2
+
+# Testing
+pytest==9.1.1
+pytest-asyncio==1.4.0
