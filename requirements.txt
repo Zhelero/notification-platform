@@ -16,6 +16,7 @@ elasticsearch==8.15.0
 
 # HTTP client
 requests==2.34.2
+httpx2==2.9.1
 
 # Testing
 pytest==9.1.1
