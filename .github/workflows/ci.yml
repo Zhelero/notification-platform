@@ -1,0 +1,103 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Start infrastructure
+        run: |
+          docker compose up -d redpanda postgres
+
+      - name: Wait for infrastructure
+        run: |
+          docker compose ps
+          sleep 10
+
+      - name: Initialize database
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+          PGPASSWORD=app psql -h localhost -p 5433 -U app -d notifications -f db/init.sql
+
+      - name: Run unit tests
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          pytest producer/tests/test_notify.py
+          pytest consumer/tests/test_save_notification.py
+          pytest consumer/tests/test_decoding.py
+
+      - name: Start producer
+        run: |
+          uvicorn producer.app:app --host 127.0.0.1 --port 8001 > producer.log 2>&1 &
+          echo $! > producer.pid
+
+      - name: Start consumer
+        run: |
+          python -m consumer.worker > consumer.log 2>&1 &
+          echo $! > consumer.pid
+
+      - name: Wait for producer
+        run: |
+          python - <<'PY'
+          import time
+          import requests
+
+          for _ in range(30):
+              try:
+                  requests.post(
+                      "http://127.0.0.1:8001/notify",
+                      json={"user_id": 1, "channel": "#health", "text": "ping"}
+                  )
+                  print("Producer is ready")
+                  break
+              except Exception:
+                  time.sleep(1)
+          else:
+              raise SystemExit("Producer did not start in time")
+          PY
+
+      - name: Check infrastructure
+        run: docker compose ps
+
+      - name: Run integration tests
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          pytest producer/tests/integration
+          pytest consumer/tests/integration
+
+      - name: Show logs on failure
+        if: failure()
+        run: |
+          echo "=== Producer log ==="
+          cat producer.log || true
+          echo "=== Consumer log ==="
+          cat consumer.log || true
+          echo "=== Docker services ==="
+          docker compose ps
+
+      - name: Stop background services
+        if: always()
+        run: |
+          kill $(cat producer.pid) || true
+          kill $(cat consumer.pid) || true
+          docker compose down
