@@ -120,6 +120,12 @@ docker compose up -d
 
 This starts Redpanda, Redpanda Console, PostgreSQL, Elasticsearch, and Kibana, in the right order (Console waits for Redpanda to be healthy, Kibana waits for Elasticsearch).
 
+Install dependencies (one shared file for both services):
+
+```bash
+pip install -r requirements.txt
+```
+
 Apply database migrations (adds the `correlation_id` unique constraint that makes duplicate-message handling idempotent):
 
 ```bash
@@ -202,9 +208,10 @@ Cover request validation, the producer's 503 response when Kafka is unreachable,
 **Integration tests** — exercise the real pipeline end-to-end. Require the full stack running:
 ```bash
 docker compose up -d
+pip install -r requirements.txt
 alembic upgrade head
-# in one terminal: cd producer && uvicorn app:app --port 8001
-# in another:      cd consumer && python worker.py
+# in one terminal: uvicorn producer.app:app --port 8001
+# in another:      python -m consumer.worker
 # then, from the repo root:
 pytest producer/tests/integration consumer/tests/integration
 ```
